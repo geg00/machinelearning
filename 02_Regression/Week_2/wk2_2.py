@@ -1,5 +1,6 @@
 #!/usr/bin/env python2.7
 
+import sys
 import graphlab
 
 sales = graphlab.SFrame('kc_house_data.gl/')
@@ -31,7 +32,7 @@ def get_numpy_data(data_sframe, features, output):
 
 print "example_features"
 print len(example_features)
-print example_features[0,:]
+print example_features[0:3,:]
 # this accesses the first row of the data the ':' indicates 'all columns'
 print "example_output"
 print len(example_output)
@@ -56,21 +57,21 @@ def predict_output(feature_matrix, weights):
 
     # assume feature_matrix is a numpy matrix containing the features as columns and weights is a corresponding numpy array
     # create the predictions vector by using np.dot()
-    print("feature_matrix")
-    print(len(feature_matrix))
-    print("weights")
-    print(len(weights))
+#    print("feature_matrix")
+#    print(len(feature_matrix))
+#    print("weights")
+#    print(len(weights))
 
     predictions = np.dot(feature_matrix, weights)
-    print("predictions")
-    print(len(predictions))
+#    print("predictions")
+#    print(len(predictions))
 
     return(predictions)
 
-print(example_features[0:2,:])
-
 test_predictions = predict_output(example_features, my_weights)
+print "test_predictions[0] should be 1181.0"
 print test_predictions[0] # should be 1181.0
+print "test_predictions[1] should be 2571.0"
 print test_predictions[1] # should be 2571.0
 
 # Computing the Derivative
@@ -93,7 +94,9 @@ feature = example_features[:,0] # let's compute the derivative with respect to '
 
 derivative = feature_derivative(errors, feature)
 
+print "derivative"
 print derivative
+print "-np.sum(example_output)*2"
 print -np.sum(example_output)*2 # should be the same as derivative
 
 
@@ -105,10 +108,13 @@ from math import sqrt
 def regression_gradient_descent(feature_matrix, output, initial_weights, step_size, tolerance):
     converged = False 
     weights = np.array(initial_weights) # make sure it's a numpy array
-    gradient_magnitude = 0
+    count = 0
     while not converged:
+        print("count = %d" % count)
+        print("weights = %s" % str(weights))
+
         # compute the predictions based on feature_matrix and weights using your predict_output() function
-        predictions = predict_output(feature_matrix, initial_weights)
+        predictions = predict_output(feature_matrix, weights)
 
         # compute the errors as predictions - output
         errors = predictions - output
@@ -119,17 +125,23 @@ def regression_gradient_descent(feature_matrix, output, initial_weights, step_si
             # Recall that feature_matrix[:, i] is the feature column associated with weights[i]
             # compute the derivative for weight[i]:
             derivative = feature_derivative(errors, feature_matrix[:, i])
+            print("  derivative = %f" % derivative)
 
             # add the squared value of the derivative to the gradient magnitude (for assessing convergence)
-            gradient_magnitude += derivative**2
+            gradient_sum_squares = gradient_sum_squares + (derivative * derivative)
 
             # subtract the step size times the derivative from the current weight
-            weights = weights - derivative * step_size
+            weights[i] = weights[i] - (derivative * step_size)
             
         # compute the square-root of the gradient sum of squares to get the gradient matnigude:
         gradient_magnitude = sqrt(gradient_sum_squares)
+        print("tolerance = %f, gradient_magnitude = %f" % (tolerance, gradient_magnitude))
         if gradient_magnitude < tolerance:
             converged = True
+        count += 1
+        if gradient_magnitude == float("inf"):
+            sys.exit(0)
+
     return(weights)
 
 # -----------------------------------
@@ -169,6 +181,8 @@ print("RSS = %f" % RSS)
 # -----------------------------------
 print "*** Running a multiple regression"
 
+train_data,test_data = sales.random_split(.8,seed=0)
+
 model_features = ['sqft_living', 'sqft_living15'] # sqft_living15 is the average squarefeet for the nearest 15 neighbors. 
 my_output = 'price'
 (feature_matrix, output) = get_numpy_data(train_data, model_features, my_output)
@@ -181,6 +195,12 @@ print "model_weights"
 print(model_weights)
 
 (test_feature_matrix, test_output) = get_numpy_data(test_data, model_features, my_output)
+
+#model_weights = regression_gradient_descent(test_feature_matrix, test_output, initial_weights, step_size, tolerance)
+#print "model_weights"
+#print(model_weights)
+
+#sys.exit(0)
 
 model_predictions = predict_output(test_feature_matrix, model_weights)
 
