@@ -1,6 +1,10 @@
 #!/usr/bin/env python2.7
 
+import sys
+sys.path.append("..") 
+
 import graphlab
+from regression import get_residual_sum_of_squares
 
 sales = graphlab.SFrame('kc_house_data.gl/')
 
@@ -20,25 +24,6 @@ print example_weight_summary
 example_predictions = example_model.predict(train_data)
 # should be 271789.505878
 print example_predictions[0]
-
-# Compute RSS
-def get_residual_sum_of_squares(model, data, outcome):
-    RSS = None
-
-    # First get the predictions
-    data['prediction'] = model.predict(data)
-#    print(data.head())
-
-    # Then compute the residuals/errors
-    data['error'] = outcome - data['prediction']
-#    print(data.head())
-
-    # Then square and add them up
-    error_sq = data['error'] * data['error']
-#    print(error_sq.sum())
-
-    RSS = error_sq.sum()
-    return(RSS)
 
 rss_example_train = get_residual_sum_of_squares(example_model,
                                                 test_data,
@@ -124,3 +109,4 @@ rss_model_3 = get_residual_sum_of_squares(model_3,
                                           test_data,
                                           test_data['price'])
 print("RSS of model 3 on test data: %f" % rss_model_3)
+

@@ -3,6 +3,7 @@
 import graphlab
 import numpy as np # note this allows us to refer to numpy as np instead 
 import unittest
+from math import sqrt
 
 # ---------------------------------------------
 # Week 1: Simple Linear Regression
@@ -50,7 +51,7 @@ def get_regression_predictions(input_feature, intercept, slope):
     predicted_output = y
     return(predicted_output)
 
-def get_residual_sum_of_squares(input_feature, output, intercept, slope, verbose=False):
+def get_residual_sum_of_squares_1(input_feature, output, intercept, slope, verbose=False):
     y = output
     x = input_feature
     w0 = intercept
@@ -77,30 +78,10 @@ def inverse_regression_predictions(output, intercept, slope):
     return(estimated_input)
 
 
-def polynomial_sframe(feature, degree):
-    # assume that degree >= 1
-    if degree < 0:
-        print("ERROR: degree should be >=0.")
-        sys.exit(1)
-
-    # initialize the SFrame:
-    poly_sframe = graphlab.SFrame()
-    # and set poly_sframe['power_1'] equal to the passed feature
-    poly_sframe['power_1'] = feature
-
-    # first check if degree > 1
-    if degree > 1:
-        # then loop over the remaining degrees:
-        # range usually starts at 0 and stops at the endpoint-1. We want it to start at 2 and stop at degree
-        for power in range(2, degree+1): 
-            # first we'll give the column a name:
-            name = 'power_' + str(power)
-            # then assign poly_sframe[name] to the appropriate power of feature
-            poly_sframe[name] = feature.apply(lambda x: x**power)
-
-    return poly_sframe
-
-def get_residual_sum_of_squares_(model, data, outcome):
+# ---------------------------------------------
+# Week 2: Multiple Regression
+# ---------------------------------------------
+def get_residual_sum_of_squares(model, data, outcome):
     RSS = None
     data['prediction'] = model.predict(data)
     data['error'] = outcome - data['prediction']
@@ -137,6 +118,80 @@ def predict_output(feature_matrix, weights):
     predictions = np.dot(feature_matrix, weights)
     return(predictions)
 
+
+def feature_derivative(errors, feature):
+    # Assume that errors and feature are both numpy arrays of the same length (number of data points)
+    # compute twice the dot product of these vectors as 'derivative' and return the value
+    derivative = np.dot(errors, feature) * 2
+
+    return(derivative)
+
+def regression_gradient_descent(feature_matrix, output, initial_weights, step_size, tolerance, verbose=False):
+    converged = False 
+    weights = np.array(initial_weights) # make sure it's a numpy array
+    count = 0
+    while not converged:
+        if verbose is True:
+            print("count = %d" % count)
+            print("weights = %s" % str(weights))
+
+        # compute the predictions based on feature_matrix and weights using your predict_output() function
+        predictions = predict_output(feature_matrix, weights)
+
+        # compute the errors as predictions - output
+        errors = predictions - output
+
+        gradient_sum_squares = 0 # initialize the gradient sum of squares
+        # while we haven't reached the tolerance yet, update each feature's weight
+        for i in range(len(weights)): # loop over each weight
+            # Recall that feature_matrix[:, i] is the feature column associated with weights[i]
+            # compute the derivative for weight[i]:
+            derivative = feature_derivative(errors, feature_matrix[:, i])
+            if verbose is True:
+                print("  derivative = %f" % derivative)
+
+            # add the squared value of the derivative to the gradient magnitude (for assessing convergence)
+            gradient_sum_squares = gradient_sum_squares + (derivative * derivative)
+
+            # subtract the step size times the derivative from the current weight
+            weights[i] = weights[i] - (derivative * step_size)
+            
+        # compute the square-root of the gradient sum of squares to get the gradient matnigude:
+        gradient_magnitude = sqrt(gradient_sum_squares)
+        if verbose is True:
+            print("tolerance = %f, gradient_magnitude = %f" % (tolerance, gradient_magnitude))
+        if gradient_magnitude < tolerance:
+            converged = True
+        count += 1
+        if gradient_magnitude == float("inf"):
+            sys.exit(0)
+
+    return(weights)
+
+
+def polynomial_sframe(feature, degree):
+    # assume that degree >= 1
+    if degree < 0:
+        print("ERROR: degree should be >=0.")
+        sys.exit(1)
+
+    # initialize the SFrame:
+    poly_sframe = graphlab.SFrame()
+    # and set poly_sframe['power_1'] equal to the passed feature
+    poly_sframe['power_1'] = feature
+
+    # first check if degree > 1
+    if degree > 1:
+        # then loop over the remaining degrees:
+        # range usually starts at 0 and stops at the endpoint-1. We want it to start at 2 and stop at degree
+        for power in range(2, degree+1): 
+            # first we'll give the column a name:
+            name = 'power_' + str(power)
+            # then assign poly_sframe[name] to the appropriate power of feature
+            poly_sframe[name] = feature.apply(lambda x: x**power)
+
+    return poly_sframe
+
 class TestWeek1(unittest.TestCase):
     def test_simple_linear_regression_001(self):
         sales = graphlab.SFrame('kc_house_data.gl/')
@@ -155,14 +210,14 @@ class TestWeek1(unittest.TestCase):
 
         self.assertEqual(700074.8456294576, est_price)
 
-    def test_get_residual_sum_of_squares_001(self):
+    def test_get_residual_sum_of_squares_1_001(self):
         sales = graphlab.SFrame('kc_house_data.gl/')
         train_data,test_data = sales.random_split(.8,seed=0)
 
         sqft_intercept = -47116.07657494047
         sqft_slope = 281.9588385676974
 
-        rss = get_residual_sum_of_squares(train_data['sqft_living'], train_data['price'],sqft_intercept,sqft_slope)
+        rss = get_residual_sum_of_squares_1(train_data['sqft_living'], train_data['price'],sqft_intercept,sqft_slope)
 
         self.assertEqual(1201918356321967.5, rss)
 
@@ -173,6 +228,98 @@ class TestWeek1(unittest.TestCase):
         est_sqft = inverse_regression_predictions(800000,sqft_intercept,sqft_slope)
 
         self.assertEqual(3004.3962476159463, est_sqft)
+
+class TestWeek2(unittest.TestCase):
+    def test_simple_linear_regression_001(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+
+        # Split data into training and testing.
+        train_data,test_data = sales.random_split(.8,seed=0)
+
+        # Learning a multiple regression model
+        example_features = ['sqft_living', 'bedrooms', 'bathrooms']
+        example_model = graphlab.linear_regression.create(train_data, target = 'price',
+                                                          features = example_features, 
+                                                          validation_set = None)
+
+        rss_example_train = get_residual_sum_of_squares(example_model,
+                                                        test_data,
+                                                        test_data['price'])
+
+        self.assertEqual(273761538330191.1, rss_example_train)
+
+    def test_get_numpy_data_001(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+        (example_features, example_output) = get_numpy_data(sales, ['sqft_living'], 'price')
+
+        self.assertEqual(21613, len(example_features))
+        a = np.array([[1.00000000e+00,1.18000000e+03],
+                      [1.00000000e+00,2.57000000e+03],
+                      [1.00000000e+00,7.70000000e+02]])
+        self.assertEqual(str(a), str(example_features[0:3,:]))
+
+        self.assertEqual(21613, len(example_output))
+        self.assertEqual(221900.0, example_output[0])
+        self.assertEqual(325000.0, example_output[len(example_output)-1])
+
+    def test_predict_output_001(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+        (example_features, example_output) = get_numpy_data(sales, ['sqft_living'], 'price')
+
+        my_weights = np.array([1., 1.]) # the example weights
+
+        test_predictions = predict_output(example_features, my_weights)
+
+        self.assertEqual(1181.0, test_predictions[0])
+        self.assertEqual(2571.0, test_predictions[1])
+
+    def test_feature_derivative_001(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+        (example_features, example_output) = get_numpy_data(sales, ['sqft_living'], 'price')
+
+        my_weights = np.array([0., 0.]) # this makes all the predictions 0
+        test_predictions = predict_output(example_features, my_weights) 
+
+        errors = test_predictions - example_output # prediction errors in this case is just the -example_output
+        feature = example_features[:,0] # let's compute the derivative with respect to 'constant', the ":" indicates "all rows"
+        derivative = feature_derivative(errors, feature)
+
+        self.assertEqual(-np.sum(example_output)*2, derivative)
+        self.assertEqual(-23345850022.0, derivative)
+
+    def test_regression_gradient_descent_001(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+        train_data,test_data = sales.random_split(.8,seed=0)
+
+        # let's test out the gradient descent
+        simple_features = ['sqft_living']
+        my_output = 'price'
+        (simple_feature_matrix, output) = get_numpy_data(train_data, simple_features, my_output)
+        initial_weights = np.array([-47000., 1.])
+        step_size = 7e-12
+        tolerance = 2.5e7
+
+        simple_weights = regression_gradient_descent(simple_feature_matrix, output,
+                                                     initial_weights, step_size, tolerance)
+
+        a = np.array([-46999.88716555,281.91211912])
+        self.assertEqual(str(a), str(simple_weights))
+
+    def test_regression_gradient_descent_002(self):
+        sales = graphlab.SFrame('kc_house_data.gl/')
+        train_data,test_data = sales.random_split(.8,seed=0)
+
+        model_features = ['sqft_living', 'sqft_living15'] # sqft_living15 is the average squarefeet for the nearest 15 neighbors. 
+        my_output = 'price'
+        (feature_matrix, output) = get_numpy_data(train_data, model_features, my_output)
+        initial_weights = np.array([-100000., 1., 1.])
+        step_size = 4e-12
+        tolerance = 1e9
+
+        model_weights = regression_gradient_descent(feature_matrix, output, initial_weights, step_size, tolerance)
+
+        a = np.array([-9.99999688e+04,2.45072603e+02,6.52795277e+01])
+        self.assertEqual(str(a), str(model_weights))
 
 if __name__ == '__main__':
     unittest.main()
