@@ -169,6 +169,9 @@ def regression_gradient_descent(feature_matrix, output, initial_weights, step_si
     return(weights)
 
 
+# ---------------------------------------------
+# Week 3: Assessing Performance
+# ---------------------------------------------
 def polynomial_sframe(feature, degree):
     # assume that degree >= 1
     if degree < 0:
@@ -191,6 +194,7 @@ def polynomial_sframe(feature, degree):
             poly_sframe[name] = feature.apply(lambda x: x**power)
 
     return poly_sframe
+
 
 class TestWeek1(unittest.TestCase):
     def test_simple_linear_regression_001(self):
@@ -320,6 +324,16 @@ class TestWeek2(unittest.TestCase):
 
         a = np.array([-9.99999688e+04,2.45072603e+02,6.52795277e+01])
         self.assertEqual(str(a), str(model_weights))
+
+class TestWeek3(unittest.TestCase):
+    def test_spolynomial_sframe_001(self):
+        tmp = graphlab.SArray([1., 2., 3.])
+        f = polynomial_sframe(tmp, 3)
+
+        self.assertEqual(['power_1', 'power_2', 'power_3'], f.column_names())
+        self.assertEqual('[1.0, 2.0, 3.0]', str(f['power_1']))
+        self.assertEqual('[1.0, 4.0, 9.0]', str(f['power_2']))
+        self.assertEqual('[1.0, 8.0, 27.0]', str(f['power_3']))
 
 if __name__ == '__main__':
     unittest.main()
